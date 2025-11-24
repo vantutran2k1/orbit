@@ -47,5 +47,7 @@ type Execution struct {
 	StartedAt    time.Time       `json:"started_at" db:"started_at"`
 	FinishedAt   *time.Time      `json:"finished_at" db:"finished_at"`
 	ResponseCode int             `json:"response_code" db:"response_status"`
+	ResponseBody string          `json:"response_body" db:"response_body"`
+	ErrorMessage string          `json:"error_message" db:"error_message"`
 	RetryCount   int             `json:"retry_count" db:"retry_count"`
 }

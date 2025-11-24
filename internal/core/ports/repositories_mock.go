@@ -34,3 +34,13 @@ func (m *JobRepositoryMock) UpdateNextRun(ctx context.Context, id uuid.UUID, nex
 	args := m.Called(ctx, id, nextRun)
 	return args.Error(0)
 }
+
+func (m *JobRepositoryMock) SaveExecution(ctx context.Context, exec *domain.Execution) error {
+	args := m.Called(ctx, exec)
+	return args.Error(0)
+}
+
+func (m *JobRepositoryMock) UpdateJobSchedule(ctx context.Context, jobID uuid.UUID, nextRun time.Time, status domain.JobStatus) error {
+	args := m.Called(ctx, jobID, nextRun, status)
+	return args.Error(0)
+}

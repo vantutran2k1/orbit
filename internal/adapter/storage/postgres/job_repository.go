@@ -59,7 +59,7 @@ func (r *JobRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Job,
 
 func (r *JobRepository) ListDueJobs(ctx context.Context) ([]domain.Job, error) {
 	query := `
-		SELECT id, tenant_id, title, cron_expression, endpoint_url, 
+		SELECT id, tenant_id, title, cron_expression, is_recurring, endpoint_url, 
 		       http_method, headers, payload, status, next_run_at 
 		FROM jobs 
 		WHERE status = 'ACTIVE' AND next_run_at <= NOW()
@@ -76,9 +76,8 @@ func (r *JobRepository) ListDueJobs(ctx context.Context) ([]domain.Job, error) {
 	for rows.Next() {
 		var j domain.Job
 		if err := rows.Scan(
-			&j.ID, &j.TenantID, &j.Title, &j.CronExpression,
-			&j.EndpointURL, &j.HTTPMethod, &j.Headers, &j.Payload,
-			&j.Status, &j.NextRunAt,
+			&j.ID, &j.TenantID, &j.Title, &j.CronExpression, &j.IsRecurring, &j.EndpointURL,
+			&j.HTTPMethod, &j.Headers, &j.Payload, &j.Status, &j.NextRunAt,
 		); err != nil {
 			return nil, err
 		}
@@ -97,5 +96,37 @@ func (r *JobRepository) UpdateNextRun(ctx context.Context, id uuid.UUID, nextRun
 	`
 
 	_, err := r.db.Exec(ctx, query, nextRun, id)
+	return err
+}
+
+func (r *JobRepository) SaveExecution(ctx context.Context, exec *domain.Execution) error {
+	query := `
+		INSERT INTO executions (
+			id, job_id, tenant_id, status, 
+			started_at, finished_at, 
+			response_status, response_body, error_message, retry_count
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`
+	if exec.ID == uuid.Nil {
+		exec.ID = uuid.New()
+	}
+
+	_, err := r.db.Exec(ctx, query,
+		exec.ID, exec.JobID, exec.TenantID, exec.Status,
+		exec.StartedAt, exec.FinishedAt,
+		exec.ResponseCode, exec.ResponseBody, exec.ErrorMessage, exec.RetryCount,
+	)
+	return err
+}
+
+func (r *JobRepository) UpdateJobSchedule(ctx context.Context, jobID uuid.UUID, nextRun time.Time, status domain.JobStatus) error {
+	query := `
+		UPDATE jobs 
+		SET next_run_at = $1, 
+		    status = $2,
+		    updated_at = NOW()
+		WHERE id = $3
+	`
+	_, err := r.db.Exec(ctx, query, nextRun, status, jobID)
 	return err
 }
