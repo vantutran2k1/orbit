@@ -59,11 +59,17 @@ func (r *JobRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Job,
 
 func (r *JobRepository) ListDueJobs(ctx context.Context) ([]domain.Job, error) {
 	query := `
-		SELECT id, tenant_id, title, cron_expression, is_recurring, endpoint_url, 
-		       http_method, headers, payload, status, next_run_at 
-		FROM jobs 
-		WHERE status = 'ACTIVE' AND next_run_at <= NOW()
-		LIMIT 1000
+		UPDATE jobs
+		SET next_run_at = NOW() + INTERVAL '1 minute' -- Lease time
+		WHERE id IN (
+			SELECT id FROM jobs
+			WHERE status = 'ACTIVE' AND next_run_at <= NOW()
+			ORDER BY next_run_at ASC
+			LIMIT 50
+			FOR UPDATE SKIP LOCKED
+		)
+		RETURNING id, tenant_id, title, cron_expression, is_recurring, 
+				endpoint_url, http_method, headers, payload, status, next_run_at
 	`
 
 	rows, err := r.db.Query(ctx, query)
