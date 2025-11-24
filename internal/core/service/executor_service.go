@@ -54,7 +54,7 @@ func (e *ExecutorService) ExecuteJob(ctx context.Context, job domain.Job) {
 		fmt.Printf("failed to save execution log for job %s: %v\n", job.ID, err)
 	}
 
-	e.handleRescheduling(ctx, job)
+	e.handleRescheduling(ctx, job, execution)
 }
 
 func (e *ExecutorService) performRequest(ctx context.Context, job domain.Job, exec *domain.Execution) {
@@ -96,26 +96,46 @@ func (e *ExecutorService) performRequest(ctx context.Context, job domain.Job, ex
 	}
 }
 
-func (e *ExecutorService) handleRescheduling(ctx context.Context, job domain.Job) {
+func (e *ExecutorService) handleRescheduling(ctx context.Context, job domain.Job, exec *domain.Execution) {
 	var nextRun time.Time
-	var newStatus domain.JobStatus
+	var failures int
 
-	if job.IsRecurring {
-		schedule, err := e.cronParser.Parse(job.CronExpression)
-		if err != nil {
-			fmt.Printf("error parsing cron for job: %s: %v\n", job.ID, err)
-			e.repo.UpdateJobSchedule(ctx, job.ID, time.Time{}, domain.JobStatusPaused)
+	if exec.Status == domain.ExecStatusSuccess {
+		failures = 0
+
+		if job.IsRecurring {
+			schedule, _ := e.cronParser.Parse(job.CronExpression)
+			nextRun = schedule.Next(time.Now())
+		} else {
+			e.repo.UpdateJobSchedule(ctx, job.ID, time.Time{}, domain.JobStatusCompleted)
 			return
 		}
-
-		nextRun = schedule.Next(time.Now())
-		newStatus = domain.JobStatusActive
 	} else {
-		nextRun = time.Time{}
-		newStatus = domain.JobStatusCompleted
+		failures = job.FailureCount + 1
+
+		maxRetries := job.MaxRetries
+		if maxRetries == 0 {
+			maxRetries = 3
+		}
+
+		if failures <= maxRetries {
+			backoff := CalculateBackoff(failures)
+			nextRun = time.Now().Add(backoff)
+
+			fmt.Printf("job %s failed, retrying in %v (attempt %d/%d)\n", job.Title, backoff, failures, maxRetries)
+		} else {
+			fmt.Printf("job %s failed max times, abandoning this run\n", job.Title)
+			failures = 0
+
+			if job.IsRecurring {
+				schedule, _ := e.cronParser.Parse(job.CronExpression)
+				nextRun = schedule.Next(time.Now())
+			} else {
+				e.repo.UpdateJobSchedule(ctx, job.ID, time.Time{}, domain.JobStatusCompleted)
+				return
+			}
+		}
 	}
 
-	if err := e.repo.UpdateJobSchedule(ctx, job.ID, nextRun, newStatus); err != nil {
-		fmt.Printf("failed to reschedule job %s: %v\n", job.ID, err)
-	}
+	e.repo.UpdateJobStatusAfterRun(ctx, job.ID, nextRun, failures)
 }

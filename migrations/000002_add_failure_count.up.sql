@@ -1,0 +1,2 @@
+ALTER TABLE jobs ADD COLUMN failure_count INT DEFAULT 0;
+ALTER TABLE jobs ADD COLUMN max_retries INT DEFAULT 3;

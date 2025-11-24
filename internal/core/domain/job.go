@@ -35,6 +35,8 @@ type Job struct {
 	Payload        map[string]any    `json:"payload" db:"payload"`
 	Status         JobStatus         `json:"status" db:"status"`
 	NextRunAt      time.Time         `json:"next_run_at" db:"next_run_at"`
+	FailureCount   int               `json:"failure_count" db:"failure_count"`
+	MaxRetries     int               `json:"max_retries" db:"max_retries"`
 	CreatedAt      time.Time         `json:"created_at" db:"created_at"`
 	UpdatedAt      time.Time         `json:"updated_at" db:"updated_at"`
 }

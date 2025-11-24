@@ -68,8 +68,9 @@ func (r *JobRepository) ListDueJobs(ctx context.Context) ([]domain.Job, error) {
 			LIMIT 50
 			FOR UPDATE SKIP LOCKED
 		)
-		RETURNING id, tenant_id, title, cron_expression, is_recurring, 
-				endpoint_url, http_method, headers, payload, status, next_run_at
+		RETURNING 
+			id, tenant_id, title, cron_expression, is_recurring, endpoint_url, 
+			http_method, headers, payload, status, next_run_at, failure_count, max_retries
 	`
 
 	rows, err := r.db.Query(ctx, query)
@@ -83,7 +84,7 @@ func (r *JobRepository) ListDueJobs(ctx context.Context) ([]domain.Job, error) {
 		var j domain.Job
 		if err := rows.Scan(
 			&j.ID, &j.TenantID, &j.Title, &j.CronExpression, &j.IsRecurring, &j.EndpointURL,
-			&j.HTTPMethod, &j.Headers, &j.Payload, &j.Status, &j.NextRunAt,
+			&j.HTTPMethod, &j.Headers, &j.Payload, &j.Status, &j.NextRunAt, &j.FailureCount, &j.MaxRetries,
 		); err != nil {
 			return nil, err
 		}
@@ -134,5 +135,17 @@ func (r *JobRepository) UpdateJobSchedule(ctx context.Context, jobID uuid.UUID, 
 		WHERE id = $3
 	`
 	_, err := r.db.Exec(ctx, query, nextRun, status, jobID)
+	return err
+}
+
+func (r *JobRepository) UpdateJobStatusAfterRun(ctx context.Context, jobID uuid.UUID, nextRun time.Time, failures int) error {
+	query := `
+        UPDATE jobs 
+        SET next_run_at = $1, 
+            failure_count = $2,
+            updated_at = NOW()
+        WHERE id = $3
+    `
+	_, err := r.db.Exec(ctx, query, nextRun, failures, jobID)
 	return err
 }

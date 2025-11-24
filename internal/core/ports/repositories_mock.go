@@ -44,3 +44,8 @@ func (m *JobRepositoryMock) UpdateJobSchedule(ctx context.Context, jobID uuid.UU
 	args := m.Called(ctx, jobID, nextRun, status)
 	return args.Error(0)
 }
+
+func (m *JobRepositoryMock) UpdateJobStatusAfterRun(ctx context.Context, jobID uuid.UUID, nextRun time.Time, failures int) error {
+	args := m.Called(ctx, jobID, nextRun, failures)
+	return args.Error(0)
+}
