@@ -10,7 +10,9 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 	http_handler "github.com/vantutran2k1/orbit/internal/adapter/handler/http"
+	"github.com/vantutran2k1/orbit/internal/adapter/handler/socket"
 	"github.com/vantutran2k1/orbit/internal/adapter/storage/postgres"
+	"github.com/vantutran2k1/orbit/internal/adapter/storage/redis"
 	"github.com/vantutran2k1/orbit/internal/core/service"
 )
 
@@ -26,6 +28,8 @@ func main() {
 	}
 	defer dbPool.Close()
 
+	redis.Init()
+
 	jobRepo := postgres.NewJobRepository(dbPool)
 	schedulerSvc := service.NewSchedulerService(jobRepo)
 	jobHandler := http_handler.NewJobHandler(schedulerSvc)
@@ -37,6 +41,7 @@ func main() {
 	r.Use(middleware.SetHeader("Content-Type", "application/json"))
 
 	r.Post("/jobs", jobHandler.Create)
+	r.Get("/ws", socket.GlobalHub.HandleConnection)
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"status":"ok"}`))

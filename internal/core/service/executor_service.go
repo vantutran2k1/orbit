@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
+	"github.com/vantutran2k1/orbit/internal/adapter/storage/redis"
 	"github.com/vantutran2k1/orbit/internal/core/domain"
 	"github.com/vantutran2k1/orbit/internal/core/ports"
 )
@@ -58,6 +60,11 @@ func (e *ExecutorService) ExecuteJob(ctx context.Context, job domain.Job) {
 }
 
 func (e *ExecutorService) performRequest(ctx context.Context, job domain.Job, exec *domain.Execution) {
+	if strings.HasPrefix(job.EndpointURL, "tunnel:") {
+		e.performTunnelRequest(ctx, job, exec)
+		return
+	}
+
 	var bodyReader io.Reader
 	if job.Payload != nil {
 		jsonBytes, _ := json.Marshal(job.Payload)
@@ -94,6 +101,27 @@ func (e *ExecutorService) performRequest(ctx context.Context, job domain.Job, ex
 		exec.Status = domain.ExecStatusFailed
 		exec.ErrorMessage = fmt.Sprintf("HTTP %d", resp.StatusCode)
 	}
+}
+
+func (e *ExecutorService) performTunnelRequest(ctx context.Context, job domain.Job, exec *domain.Execution) {
+	msg := map[string]any{
+		"job_id":  job.ID.String(),
+		"payload": job.Payload,
+	}
+	data, _ := json.Marshal(msg)
+
+	channel := "orbit:tunnel:" + job.TenantID.String()
+
+	if err := redis.RDB.Publish(ctx, channel, data).Err(); err != nil {
+		exec.Status = domain.ExecStatusFailed
+		exec.ErrorMessage = "redis publish error: " + err.Error()
+		return
+	}
+
+	// TODO: wait for an ack from the agent
+	exec.Status = domain.ExecStatusSuccess
+	exec.ResponseBody = "forwarded via redis pub/sub"
+	exec.ResponseCode = 200
 }
 
 func (e *ExecutorService) handleRescheduling(ctx context.Context, job domain.Job, exec *domain.Execution) {

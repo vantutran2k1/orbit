@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vantutran2k1/orbit/internal/adapter/storage/postgres"
+	"github.com/vantutran2k1/orbit/internal/adapter/storage/redis"
 	"github.com/vantutran2k1/orbit/internal/core/service"
 	"github.com/vantutran2k1/orbit/internal/platform/worker"
 )
@@ -28,6 +29,8 @@ func main() {
 		log.Fatal("unable to connect to database:", err)
 	}
 	defer dbPool.Close()
+
+	redis.Init()
 
 	jobRepo := postgres.NewJobRepository(dbPool)
 	executor := service.NewExecutorService(jobRepo)
