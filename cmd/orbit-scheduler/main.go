@@ -33,7 +33,9 @@ func main() {
 	redis.Init()
 
 	jobRepo := postgres.NewJobRepository(dbPool)
-	executor := service.NewExecutorService(jobRepo)
+	wfRepo := postgres.NewWorkflowRepository(dbPool)
+
+	executor := service.NewExecutorService(jobRepo, wfRepo)
 
 	wp := worker.NewPool(50)
 	wp.Start(ctx)

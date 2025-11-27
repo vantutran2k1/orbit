@@ -15,5 +15,13 @@ type JobRepository interface {
 	UpdateNextRun(ctx context.Context, id uuid.UUID, nextRun time.Time) error
 	SaveExecution(ctx context.Context, exec *domain.Execution) error
 	UpdateJobSchedule(ctx context.Context, jobID uuid.UUID, nextRun time.Time, status domain.JobStatus) error
-	UpdateJobStatusAfterRun(ctx context.Context, jobID uuid.UUID, nextRun time.Time, failures int) error
+	UpdateJobStatusAfterRun(ctx context.Context, jobID uuid.UUID, nextRun time.Time, failures int, nextRunID *uuid.UUID) error
+}
+
+type WorkflowRepository interface {
+	Create(ctx context.Context, wf *domain.Workflow) error
+	AddDependency(ctx context.Context, upstreamID, downstreamID, tenantID uuid.UUID) error
+	GetDownstreamJobs(ctx context.Context, jobID uuid.UUID) ([]domain.Job, error)
+	CreateWorkflowRun(ctx context.Context, wfID uuid.UUID) (uuid.UUID, error)
+	ScheduleDownstream(ctx context.Context, jobID uuid.UUID, runID uuid.UUID) error
 }

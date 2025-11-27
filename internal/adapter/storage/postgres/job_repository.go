@@ -69,7 +69,9 @@ func (r *JobRepository) ListDueJobs(ctx context.Context) ([]domain.Job, error) {
 			FOR UPDATE SKIP LOCKED
 		)
 		RETURNING 
-			id, tenant_id, title, cron_expression, is_recurring, endpoint_url, 
+			id, tenant_id, title,
+			COALESCE(cron_expression, ''),
+			is_recurring, endpoint_url, 
 			http_method, headers, payload, status, next_run_at, failure_count, max_retries
 	`
 
@@ -109,19 +111,17 @@ func (r *JobRepository) UpdateNextRun(ctx context.Context, id uuid.UUID, nextRun
 func (r *JobRepository) SaveExecution(ctx context.Context, exec *domain.Execution) error {
 	query := `
 		INSERT INTO executions (
-			id, job_id, tenant_id, status, 
-			started_at, finished_at, 
-			response_status, response_body, error_message, retry_count
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			id, job_id, tenant_id, status, started_at, finished_at, 
+			response_status, response_body, error_message, retry_count, workflow_run_id
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 	if exec.ID == uuid.Nil {
 		exec.ID = uuid.New()
 	}
 
 	_, err := r.db.Exec(ctx, query,
-		exec.ID, exec.JobID, exec.TenantID, exec.Status,
-		exec.StartedAt, exec.FinishedAt,
-		exec.ResponseCode, exec.ResponseBody, exec.ErrorMessage, exec.RetryCount,
+		exec.ID, exec.JobID, exec.TenantID, exec.Status, exec.StartedAt, exec.FinishedAt,
+		exec.ResponseCode, exec.ResponseBody, exec.ErrorMessage, exec.RetryCount, exec.WorkflowRunID,
 	)
 	return err
 }
@@ -138,14 +138,15 @@ func (r *JobRepository) UpdateJobSchedule(ctx context.Context, jobID uuid.UUID, 
 	return err
 }
 
-func (r *JobRepository) UpdateJobStatusAfterRun(ctx context.Context, jobID uuid.UUID, nextRun time.Time, failures int) error {
+func (r *JobRepository) UpdateJobStatusAfterRun(ctx context.Context, jobID uuid.UUID, nextRun time.Time, failures int, nextRunID *uuid.UUID) error {
 	query := `
         UPDATE jobs 
         SET next_run_at = $1, 
             failure_count = $2,
+			next_workflow_run_id = $3,
             updated_at = NOW()
-        WHERE id = $3
+        WHERE id = $4
     `
-	_, err := r.db.Exec(ctx, query, nextRun, failures, jobID)
+	_, err := r.db.Exec(ctx, query, nextRun, failures, nextRunID, jobID)
 	return err
 }

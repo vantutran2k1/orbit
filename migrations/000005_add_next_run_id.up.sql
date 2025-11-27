@@ -1,0 +1,1 @@
+ALTER TABLE jobs ADD COLUMN next_workflow_run_id UUID REFERENCES workflow_runs(id) ON DELETE SET NULL;
