@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 	http_handler "github.com/vantutran2k1/orbit/internal/adapter/handler/http"
+	http_middleware "github.com/vantutran2k1/orbit/internal/adapter/handler/middleware"
 	"github.com/vantutran2k1/orbit/internal/adapter/handler/socket"
 	"github.com/vantutran2k1/orbit/internal/adapter/storage/postgres"
 	"github.com/vantutran2k1/orbit/internal/adapter/storage/redis"
@@ -34,17 +35,23 @@ func main() {
 	schedulerSvc := service.NewSchedulerService(jobRepo)
 	jobHandler := http_handler.NewJobHandler(schedulerSvc)
 
+	authSvc := service.NewAuthService(dbPool)
+
 	r := chi.NewRouter()
 
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.SetHeader("Content-Type", "application/json"))
 
-	r.Post("/jobs", jobHandler.Create)
-	r.Get("/ws", socket.GlobalHub.HandleConnection)
-
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"status":"ok"}`))
+	})
+
+	r.Group(func(r chi.Router) {
+		r.Use(http_middleware.AuthMiddleware(authSvc))
+
+		r.Post("/jobs", jobHandler.Create)
+		r.Get("/ws", socket.GlobalHub.HandleConnection)
 	})
 
 	port := os.Getenv("PORT")

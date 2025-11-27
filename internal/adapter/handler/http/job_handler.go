@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"github.com/vantutran2k1/orbit/internal/adapter/handler/middleware"
 	"github.com/vantutran2k1/orbit/internal/core/service"
 )
 
@@ -31,9 +32,14 @@ func (h *JobHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Use Auth to get tenant ID
-	job := req.ToDomain("11111111-1111-1111-1111-111111111111")
-	job.TenantID = uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	tenantID := middleware.GetTenantID(r.Context())
+	if tenantID == uuid.Nil {
+		render.Status(r, http.StatusInternalServerError)
+		return
+	}
+
+	job := req.ToDomain(tenantID.String())
+	job.TenantID = tenantID
 
 	if err := h.svc.ScheduleJob(r.Context(), job); err != nil {
 		render.Status(r, http.StatusInternalServerError)

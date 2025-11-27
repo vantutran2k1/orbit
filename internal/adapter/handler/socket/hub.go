@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/vantutran2k1/orbit/internal/adapter/handler/middleware"
 	"github.com/vantutran2k1/orbit/internal/adapter/storage/redis"
 )
 
@@ -30,11 +31,9 @@ var GlobalHub = &Hub{
 }
 
 func (h *Hub) HandleConnection(w http.ResponseWriter, r *http.Request) {
-	// TODO: get tenant id from auth token
-	tenantIDStr := r.URL.Query().Get("tenant_id")
-	tenantID, err := uuid.Parse(tenantIDStr)
-	if err != nil {
-		http.Error(w, "invalid tenant_id", http.StatusBadRequest)
+	tenantID := middleware.GetTenantID(r.Context())
+	if tenantID == uuid.Nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
